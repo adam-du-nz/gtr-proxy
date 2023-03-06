@@ -1,6 +1,5 @@
-import {proxyPathnameToAzBlobSASUrl} from './azb'
-import {serializeError} from 'serialize-error';
-
+import { proxyPathnameToAzBlobSASUrl } from './azb'
+import { serializeError } from 'serialize-error'
 
 export async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url)
@@ -49,14 +48,20 @@ export async function handleProxyToGoogleTakeoutRequest(
   request: Request,
 ): Promise<Response> {
   // Extracted URL is after the /p/ in the path with https:// prepended to it
-  const original_url_segment = `https://${request.url.substring(request.url.indexOf('/p/') + 3)}`
+  const original_url_segment = `https://${request.url.substring(
+    request.url.indexOf('/p/') + 3,
+  )}`
 
   // Strip off "/dummy.bin" from the end of the URL if it is there.
   // This allows testing with azcopy which requires a nice filename at the end.
-  const original_url_segment_stripped = original_url_segment.replace(/\/dummy.bin$/, '')
+  const original_url_segment_stripped = original_url_segment.replace(
+    /\/dummy.bin$/,
+    '',
+  )
 
   // Replace %25 with % to get the original URL
-  const original_url_segment_stripped_processed = original_url_segment_stripped.replace(/%25/g, '%')
+  const original_url_segment_stripped_processed =
+    original_url_segment_stripped.replace(/%25/g, '%')
 
   let extracted_url: URL
   try {
@@ -94,7 +99,9 @@ export async function handleProxyToGoogleTakeoutRequest(
   return response
 }
 
-export async function handleProxyToAzStorageRequest(request: Request): Promise<Response> {
+export async function handleProxyToAzStorageRequest(
+  request: Request,
+): Promise<Response> {
   const url = new URL(request.url)
   try {
     const azUrl = proxyPathnameToAzBlobSASUrl(url)
@@ -117,7 +124,9 @@ export async function handleProxyToAzStorageRequest(request: Request): Promise<R
   }
 }
 
-export async function handleFullTransloadFromGoogleTakeoutToAzBlobRequest(request: Request): Promise<Response> {
+export async function handleFullTransloadFromGoogleTakeoutToAzBlobRequest(
+  request: Request,
+): Promise<Response> {
   // These headers go to Azure
   const toAzureHeaders = new Headers()
   // These headers go to the source
@@ -137,7 +146,6 @@ export async function handleFullTransloadFromGoogleTakeoutToAzBlobRequest(reques
       status: 400,
     })
   }
-
 
   // If a x-gtr-copy-source-range exists, process it
   // x-gtr-copy-source-range format is like "bytes=start-end"
@@ -172,10 +180,16 @@ export async function handleFullTransloadFromGoogleTakeoutToAzBlobRequest(reques
   // Get a readable stream of the request body from the url of x-gtr-copy-source
   const copySourceUrl = new URL(copySource)
   // Make sure hostname is a valid test server or google URL
-  if (!validGoogleTakeoutUrl(copySourceUrl) && !validTestServerURL(copySourceUrl)) {
-    return new Response('invalid x-gtr-copy-source header: not takeout url or test server url', {
-      status: 403,
-    })
+  if (
+    !validGoogleTakeoutUrl(copySourceUrl) &&
+    !validTestServerURL(copySourceUrl)
+  ) {
+    return new Response(
+      'invalid x-gtr-copy-source header: not takeout url or test server url',
+      {
+        status: 403,
+      },
+    )
   }
   console.log('fetching original file from', copySourceUrl.href)
   const sourceRange = request.headers.get('x-gtr-copy-source-range')
@@ -206,7 +220,10 @@ export async function handleFullTransloadFromGoogleTakeoutToAzBlobRequest(reques
     })
   }
   // Set content length of toAzureHeaders to the content length of the source
-  toAzureHeaders.set('Content-Length', copySourceResponse.headers.get('Content-Length') || '0')
+  toAzureHeaders.set(
+    'Content-Length',
+    copySourceResponse.headers.get('Content-Length') || '0',
+  )
 
   // remove all upstream that start with cloudflare stuff
   for (const [key, _] of toAzureHeaders.entries()) {
@@ -220,13 +237,15 @@ export async function handleFullTransloadFromGoogleTakeoutToAzBlobRequest(reques
     const azUrl = proxyPathnameToAzBlobSASUrl(url)
     console.log('proxying to', azUrl)
 
-    console.log('toAzureHeaders', JSON.stringify(Object.fromEntries(toAzureHeaders.entries())))
-    const originalResponse = await fetch(
-      azUrl.toString(), {
-        method: request.method,
-        headers: toAzureHeaders,
-        body: copySourceBody
-      })
+    console.log(
+      'toAzureHeaders',
+      JSON.stringify(Object.fromEntries(toAzureHeaders.entries())),
+    )
+    const originalResponse = await fetch(azUrl.toString(), {
+      method: request.method,
+      headers: toAzureHeaders,
+      body: copySourceBody,
+    })
 
     const body2 = await originalResponse.text()
 
@@ -238,15 +257,13 @@ export async function handleFullTransloadFromGoogleTakeoutToAzBlobRequest(reques
       headers: originalResponse.headers,
     })
 
-
     return response
   } catch (e) {
     if (e instanceof Error) {
       const error = serializeError(e)
-      return new Response(JSON.stringify(error),
-        {
-          status: 500,
-        })
+      return new Response(JSON.stringify(error), {
+        status: 500,
+      })
     }
     return new Response('unknown error', {
       status: 500,
@@ -265,8 +282,9 @@ export function validTestServerURL(url: URL): boolean {
 
 export function validGoogleTakeoutUrl(url: URL): boolean {
   return (
-    url.hostname.endsWith('apidata.googleusercontent.com') &&
-    (url.pathname.startsWith('/download/storage/v1/b/dataliberation/o/') ||
-      url.pathname.startsWith('/download/storage/v1/b/takeout'))
+    (url.hostname.endsWith('apidata.googleusercontent.com') &&
+      (url.pathname.startsWith('/download/storage/v1/b/dataliberation/o/') ||
+        url.pathname.startsWith('/download/storage/v1/b/takeout'))) ||
+    url.hostname.endsWith('storage.googleapis.com')
   )
 }
